@@ -24,6 +24,10 @@ class TranscriptionThread(QThread):
 class DragDropArea(QLabel):
     def __init__(self):
         super().__init__()
+        self.text_processor = None
+        self.init_ui()
+
+    def init_ui(self):
         self.setAlignment(Qt.AlignCenter)
         self.setText("Arrastra y suelta tu archivo de video aquí")
         self.setStyleSheet("""
@@ -35,7 +39,10 @@ class DragDropArea(QLabel):
             }
         """)
         self.setAcceptDrops(True)
-        self.thread = None
+
+    def set_text_processor(self, processor):
+        """Establece el procesador de texto"""
+        self.text_processor = processor
 
     def dragEnterEvent(self, event):
         if event.mimeData().hasUrls():

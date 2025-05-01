@@ -1,20 +1,42 @@
 import speech_recognition as sr
+import os
 
 
 class SpeechToText:
-    def __init__(self):
-        self.recognizer = sr.Recognizer()
+    class TranscriptionError(Exception):
+        """Error personalizado para problemas de transcripción"""
+        pass
 
-    def convert_to_text(self, audio_path, language='es-ES'):
+    def __init__(self):
+        self.recognizer = sr.Recognizer()  # Inicializar en el constructor
+
+    def convert_to_text(self, audio_path: str, language: str = 'es-ES') -> str:
+        """
+        Convierte un archivo de audio a texto.
+
+        Args:
+            audio_path: Ruta al archivo de audio
+            language: Código del idioma (default: 'es-ES')
+
+        Returns:
+            str: Texto transcrito
+
+        Raises:
+            TranscriptionError: Si hay un error en la transcripción
+        """
         try:
             with sr.AudioFile(audio_path) as source:
                 audio = self.recognizer.record(source)
                 text = self.recognizer.recognize_google(
                     audio, language=language)
+                if not text:
+                    raise self.TranscriptionError(
+                        "No se detectó texto en el audio")
                 return text
         except sr.UnknownValueError:
-            return "No se pudo entender el audio"
+            raise self.TranscriptionError("No se pudo entender el audio")
         except sr.RequestError as e:
-            return f"Error en el servicio de reconocimiento: {str(e)}"
+            raise self.TranscriptionError(
+                f"Error en el servicio de Google: {str(e)}")
         except Exception as e:
-            return f"Error: {str(e)}"
+            raise self.TranscriptionError(f"Error inesperado: {str(e)}")

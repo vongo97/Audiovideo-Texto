@@ -1,9 +1,14 @@
-from moviepy.editor import VideoFileClip, AudioFileClip
+from moviepy.video.io.VideoFileClip import VideoFileClip
+from moviepy.audio.io.AudioFileClip import AudioFileClip
 from pathlib import Path
 from .speech_to_text import SpeechToText
 import os
 import math
 import time
+import logging
+from pydub import AudioSegment
+
+logger = logging.getLogger(__name__)
 
 
 def is_video_file(file_path):
@@ -19,172 +24,171 @@ def is_audio_file(file_path):
 # Reducido a 3 minutos por fragmento
 def process_in_chunks(audio_file, chunk_duration=180):
     try:
-        # Guardar el archivo de audio original en una variable
-        audio_path = audio_file.filename
-        audio_file.close()  # Cerrar el archivo original
+        # Crear directorio temporal si no existe
+        temp_dir = os.path.join(os.getcwd(), "temp")
+        os.makedirs(temp_dir, exist_ok=True)
 
-        recognizer = SpeechToText()
+        # Obtener la duración total
         total_duration = audio_file.duration
         chunks = math.ceil(total_duration / chunk_duration)
         full_text = []
-        temp_dir = os.path.join(os.getcwd(), "temp")
 
-        if not os.path.exists(temp_dir):
-            os.makedirs(temp_dir)
+        logger.info(f"Duración total del audio: {total_duration} segundos")
+        logger.info(f"Procesando en {chunks} fragmentos...")
 
-        print(f"Duración total del audio: {total_duration} segundos")
-        print(f"Procesando en {chunks} fragmentos...")
+        # Guardar el audio completo temporalmente
+        temp_audio_path = os.path.join(temp_dir, "temp_audio.wav")
+        audio_file.write_audiofile(temp_audio_path)
+
+        # Cargar el audio con pydub
+        audio_segment = AudioSegment.from_wav(temp_audio_path)
 
         for i in range(chunks):
-            start_time = i * chunk_duration
-            end_time = min((i + 1) * chunk_duration, total_duration)
+            start_time = i * chunk_duration * 1000  # pydub usa milisegundos
+            end_time = min((i + 1) * chunk_duration *
+                           1000, total_duration * 1000)
 
-            print(
-                f"\nProcesando fragmento {i+1} de {chunks} ({start_time}s - {end_time}s)...")
+            logger.info(
+                f"\nProcesando fragmento {i+1} de {chunks} ({start_time/1000}s - {end_time/1000}s)...")
 
             try:
-                # Crear una nueva instancia de AudioFileClip para cada fragmento
-                current_audio = AudioFileClip(audio_path)
-                temp_chunk_path = os.path.join(
-                    temp_dir,
-                    f"chunk_{i}_{int(time.time())}_{os.getpid()}.wav"
-                )
+                # Extraer fragmento
+                chunk = audio_segment[start_time:end_time]
 
-                # Extraer y procesar el fragmento
-                chunk = current_audio.subclip(start_time, end_time)
-                chunk.write_audiofile(
-                    temp_chunk_path,
-                    codec='pcm_s16le',
-                    verbose=False,
-                    logger=None,
-                    fps=16000,
-                    nbytes=2,
-                    buffersize=2048,  # Buffer más pequeño
-                    ffmpeg_params=["-ac", "1", "-ar", "16000"]
-                )
+                # Guardar fragmento
+                chunk_path = os.path.join(temp_dir, f"chunk_{i}.wav")
+                chunk.export(chunk_path, format="wav")
 
-                # Cerrar recursos inmediatamente
-                chunk.close()
-                current_audio.close()
-                del chunk
-                del current_audio
+                # Procesar fragmento
+                recognizer = SpeechToText()
+                text = recognizer.convert_to_text(chunk_path)
+                full_text.append(text)
 
-                # Verificar y transcribir
-                if os.path.exists(temp_chunk_path) and os.path.getsize(temp_chunk_path) > 0:
-                    text = recognizer.convert_to_text(temp_chunk_path)
-                    if text:
-                        full_text.append(text)
-                        print(f"✓ Fragmento {i+1} transcrito exitosamente")
-                    else:
-                        print(f"⚠ No se pudo transcribir el fragmento {i+1}")
+                # Limpiar
+                os.remove(chunk_path)
 
             except Exception as chunk_error:
-                print(f"❌ Error en fragmento {i+1}: {str(chunk_error)}")
+                logger.error(f"❌ Error en fragmento {i+1}: {str(chunk_error)}")
                 continue
 
-            finally:
-                # Limpiar archivos temporales
-                if os.path.exists(temp_chunk_path):
-                    try:
-                        os.remove(temp_chunk_path)
-                    except:
-                        pass
-
-                # Forzar liberación de memoria
-                import gc
-                gc.collect()
-                time.sleep(1)  # Pausa breve entre fragmentos
+        # Limpiar archivo temporal
+        os.remove(temp_audio_path)
 
         return " ".join(full_text)
 
     except Exception as e:
-        print(f"❌ Error en process_in_chunks: {str(e)}")
-        raise e
+        logger.error(f"Error procesando audio en fragmentos: {str(e)}")
+        raise
 
 
 def extract_and_transcribe(file_path):
+    """
+    Extrae audio de un archivo de video/audio y lo transcribe con procesamiento de texto avanzado.
+
+    Args:
+        file_path: Ruta al archivo de video o audio
+
+    Returns:
+        str: Ruta al archivo de transcripción generado
+    """
     try:
         # Verificar si el archivo existe
         if not os.path.exists(file_path):
-            raise Exception("El archivo no existe")
+            raise FileNotFoundError("El archivo no existe")
 
-        # Obtener el directorio donde está el script actual
+        # Configurar directorios
         app_dir = Path(__file__).parent.parent.parent
-
-        # Crear directorio temporal si no existe
         temp_dir = app_dir / "temp"
-        temp_dir.mkdir(exist_ok=True)
-
-        # Crear directorio de transcripciones si no existe
         trans_dir = app_dir / "transcripciones"
+
+        # Crear directorios necesarios
+        temp_dir.mkdir(exist_ok=True)
         trans_dir.mkdir(exist_ok=True)
 
-        # Rutas de archivos
+        # Configurar rutas
         audio_path = temp_dir / "temp_audio.wav"
-        text_path = trans_dir / \
-            Path(file_path).name.replace(Path(file_path).suffix, '.txt')
+        text_path = trans_dir / f"{Path(file_path).stem}_transcripcion.txt"
 
-        print(f"Procesando archivo: {file_path}")  # Debug
-        print(f"Creando archivo en: {text_path}")  # Debug
+        logger.info(f"Procesando archivo: {file_path}")
+        logger.info(f"Archivo de salida: {text_path}")
 
         try:
             # Procesar según el tipo de archivo
             if is_video_file(file_path):
-                print(f"Iniciando procesamiento del video: {file_path}")
-                try:
-                    video = VideoFileClip(str(file_path))
-                    print("Video cargado correctamente")
-
+                logger.info("Procesando archivo de video...")
+                with VideoFileClip(str(file_path)) as video:
                     if video.audio is None:
-                        raise Exception("El video no contiene audio")
-
-                    print("Extrayendo audio del video...")
-                    # Usar process_in_chunks directamente con el audio del video
+                        raise ValueError("El video no contiene audio")
                     text = process_in_chunks(video.audio)
-                    print("Extracción de audio completada")
-                    video.close()
-
-                except Exception as video_error:
-                    print(f"Error al procesar el video: {str(video_error)}")
-                    raise video_error
 
             elif is_audio_file(file_path):
-                print(f"Iniciando procesamiento del audio: {file_path}")
-                try:
-                    audio = AudioFileClip(str(file_path))
-                    print("Audio cargado correctamente")
-
-                    # Usar process_in_chunks directamente con el archivo de audio
+                logger.info("Procesando archivo de audio...")
+                with AudioFileClip(str(file_path)) as audio:
                     text = process_in_chunks(audio)
-                    print("Procesamiento de audio completado")
-                    audio.close()
 
-                except Exception as audio_error:
-                    print(f"Error al procesar el audio: {str(audio_error)}")
-                    raise audio_error
             else:
-                raise Exception(
+                raise ValueError(
                     "Formato de archivo no soportado. Use archivos de video o audio.")
 
-            # Guardar transcripción
-            print("Guardando transcripción...")
-            with open(text_path, 'w', encoding='utf-8') as f:
-                f.write(text)
+            # Procesar el texto transcrito
+            logger.info("Procesando transcripción con análisis de texto...")
+            from utils.text_processor import TextProcessor
+            text_processor = TextProcessor()
+            processed_result = text_processor.process_transcript(text)
 
-            print(f"Archivo guardado exitosamente en: {text_path}")
+            # Guardar transcripción estructurada
+            logger.info("Guardando transcripción estructurada...")
+            with open(text_path, 'w', encoding='utf-8') as f:
+                # Encabezado
+                f.write("TRANSCRIPCIÓN ESTRUCTURADA\n")
+                f.write("=========================\n\n")
+
+                # Metadatos
+                f.write("INFORMACIÓN DEL ARCHIVO\n")
+                f.write("---------------------\n")
+                f.write(f"Archivo original: {Path(file_path).name}\n")
+                f.write(
+                    f"Fecha de procesamiento: {time.strftime('%Y-%m-%d %H:%M:%S')}\n\n")
+
+                # Actores identificados
+                if processed_result["actors"]:
+                    f.write("ACTORES IDENTIFICADOS\n")
+                    f.write("--------------------\n")
+                    for actor in processed_result["actors"]:
+                        f.write(f"- {actor}\n")
+                    f.write("\n")
+
+                # Diálogos por actor
+                f.write("DIÁLOGOS POR ACTOR\n")
+                f.write("-----------------\n")
+                for actor, dialogues in processed_result["dialogue_by_actor"].items():
+                    if dialogues:
+                        f.write(f"\n[{actor}]\n")
+                        for dialogue in dialogues:
+                            f.write(f"  • {dialogue}\n")
+                f.write("\n")
+
+                # Texto completo estructurado
+                f.write("TEXTO COMPLETO ESTRUCTURADO\n")
+                f.write("-------------------------\n")
+                f.write(processed_result["structured_text"])
+
+            logger.info(f"Transcripción guardada exitosamente en: {text_path}")
             return str(text_path)
 
-        except Exception as ve:
-            raise Exception(f"Error en el procesamiento: {str(ve)}")
+        except Exception as e:
+            logger.error(f"Error en el procesamiento: {str(e)}")
+            raise
 
     except Exception as e:
-        print(f"Error general: {str(e)}")
+        logger.error(f"Error general: {str(e)}")
         return str(e)
+
     finally:
-        # Asegurarse de que los archivos temporales se eliminen
-        if 'video' in locals():
-            video.close()
-        if 'audio' in locals():
-            audio.close()
-        if os.path.exists(audio_path):
-            os.remove(audio_path)
+        # Limpiar archivos temporales
+        if audio_path.exists():
+            audio_path.unlink()
+
+        # Limpiar directorio temporal
+        for temp_file in temp_dir.glob("chunk_*.wav"):
+            temp_file.unlink()
