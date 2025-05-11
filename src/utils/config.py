@@ -3,12 +3,45 @@ from pathlib import Path
 
 
 class Config:
-    DEFAULT_CONFIG = {
-        "language": "es-ES",
-        "chunk_duration": 180,
-        "recognizer": "google",
-        "temp_dir": "temp",
-        "output_dir": "transcripciones"
+
+    # Configuración general para el procesamiento de texto
+    TEXT_PROCESSING_CONFIG = {
+        # Patrones para identificar entidades
+        "entity_patterns": [
+            {"pattern": [{"LOWER": "sr"}, {"IS_TITLE": True}], "label": "PER"},
+            {"pattern": [{"LOWER": "sra"}, {
+                "IS_TITLE": True}], "label": "PER"},
+            {"pattern": [{"LOWER": "dr"}, {"IS_TITLE": True}], "label": "PER"},
+            {"pattern": [
+                {"TEXT": {"REGEX": "^[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+$"}}], "label": "PER"}
+        ],
+
+        # Palabras para ignorar en metadata
+        "metadata_keywords": [
+            "suscríbete", "dale me gusta", "atención", "video", "canal",
+            "práctica", "ejercicio", "lección"
+        ],
+
+        # Expresiones que indican cambio de hablante
+        "speaker_indicators": [
+            "dice", "responde", "pregunta", "contesta", "explica"
+        ],
+
+        # Palabras que requieren puntuación específica
+        "punctuation_rules": {
+            "greetings": ["hola", "buenos días", "buenas tardes", "adiós", "gracias"],
+            "affirmations": ["sí", "no", "claro", "exacto", "vale"],
+            "questions": ["qué", "cómo", "dónde", "cuándo", "quién", "cuál", "por qué"],
+            "conjunctions": ["pero", "y", "o", "porque", "que", "sino"]
+        },
+
+        # Configuración de formato
+        "format_config": {
+            "line_spacing": 2,
+            "indent_size": 4,
+            "max_line_length": 80,
+            "capitalize_names": True
+        }
     }
 
     def __init__(self):

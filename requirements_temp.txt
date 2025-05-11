@@ -1,0 +1,19 @@
+# requirements_temp.txt
+# Lista de dependencias EXCEPTO openai-whisper
+
+# Dependencias principales de la UI y procesamiento
+PyQt5>=5.15.9
+moviepy>=1.0.3
+SpeechRecognition>=3.10.0
+numpy>=1.24.3
+pydub>=0.25.1 # Necesario para procesamiento de audio y fragmentación
+
+# Dependencias para el reconocedor Whisper (dependencias de openai-whisper, pero listadas por separado)
+ffmpeg-python>=0.2.0
+torch>=2.1.0 # Asegúrate de tener la versión correcta de torch para tu sistema (CPU/GPU)
+transformers>=4.36.0
+sentencepiece>=0.1.99
+
+# Dependencias para la interacción con APIs (Gemini, y potencialmente DeepSeek)
+requests>=2.31.0
+google-generativeai>=0.7.0

@@ -1,8 +1,29 @@
+# requirements.txt
+# Lista de dependencias para el proyecto video-transcriber (Versión Anterior)
+
+# Dependencias principales de la UI y procesamiento
 PyQt5>=5.15.9
-moviepy>=1.0.3
+moviepy>=2.0
 SpeechRecognition>=3.10.0
 numpy>=1.24.3
+pydub>=0.25.1 # Necesario para procesamiento de audio y fragmentación
+
+# Dependencias para el reconocedor Whisper
+# Usamos openai-whisper, que incluye el modelo 'base'
+openai-whisper>=20231117
+# ffmpeg-python es una dependencia común para moviepy y pydub, y a veces para whisper
 ffmpeg-python>=0.2.0
+# transformers, torch y sentencepiece son dependencias de openai-whisper
+torch>=2.1.0 # Asegúrate de tener la versión correcta de torch para tu sistema (CPU/GPU)
 transformers>=4.36.0
-torch>=2.1.0
 sentencepiece>=0.1.99
+
+# Dependencias para la interacción con APIs (Solo Gemini en esta versión)
+# La biblioteca requests es muy común para hacer llamadas HTTP a APIs
+requests>=2.31.0
+
+# NOTA: google-generativeai no estaba listado explícitamente aquí en la versión anterior,
+# pero es necesario para GeminiProcessor. Asegúrate de que se instale
+# si no lo está en tu entorno.
+# google-generativeai>=0.7.0 # <-- Descomentar si encuentras ModuleNotFoundError para 'google'
+

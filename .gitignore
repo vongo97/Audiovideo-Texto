@@ -1,0 +1,12 @@
+# Ignorar la carpeta del entorno virtual
+.venv_py312/
+
+# Ignorar carpetas de salida y temporales
+output/
+temp/
+transcripciones/
+
+# Ignorar otros archivos comunes de Python si aún no los tienes
+__pycache__/
+*.pyc
+*.ipynb_checkpoints/ # Si usas Jupyter

@@ -1,194 +1,215 @@
-from moviepy.video.io.VideoFileClip import VideoFileClip
-from moviepy.audio.io.AudioFileClip import AudioFileClip
-from pathlib import Path
-from .speech_to_text import SpeechToText
+# src/transcriber/audio_extractor.py
 import os
-import math
-import time
 import logging
-from pydub import AudioSegment
+import subprocess
+import json
+from typing import Dict, Any, Union
+
+# Importaciones relativas corregidas previamente
+from ..utils.gemini_processor import GeminiProcessor
+from ..utils.text_processor import TextProcessor
+from .speech_recognition_factory import SpeechRecognizer
 
 logger = logging.getLogger(__name__)
 
+OUTPUT_DIR = "output"
+# Se cambió el nombre de audio extraído para que sea específico del archivo y evitar sobreescrituras
+# AUDIO_FILENAME = "extracted_audio.wav" # Ya no se usa este nombre genérico
+# No se usa directamente para el nombre final
+TRANSCRIPTION_FILENAME = "transcription.txt"
+# Sufijo para el archivo final
+PROCESSED_TRANSCRIPTION_FILENAME = "processed_transcription.txt"
 
-def is_video_file(file_path):
-    video_extensions = {'.mp4', '.avi', '.mov', '.mkv', '.flv', '.wmv'}
-    return Path(file_path).suffix.lower() in video_extensions
+# Tiempo de espera para el proceso ffmpeg en segundos (ej. 10 minutos)
+FFMPEG_TIMEOUT = 600
 
 
-def is_audio_file(file_path):
-    audio_extensions = {'.mp3', '.wav', '.m4a', '.aac', '.ogg', '.wma'}
-    return Path(file_path).suffix.lower() in audio_extensions
+def extract_audio(video_path: str, output_path: str):
+    """
+    Extrae el audio de un archivo de video o audio usando ffmpeg.
 
+    Args:
+        video_path: Ruta al archivo de video o audio de entrada.
+        output_path: Ruta donde se guardará el archivo de audio extraído (formato WAV).
 
-# Reducido a 3 minutos por fragmento
-def process_in_chunks(audio_file, chunk_duration=180):
+    Raises:
+        subprocess.CalledProcessError: Si el comando ffmpeg falla.
+        FileNotFoundError: Si ffmpeg no se encuentra.
+        subprocess.TimeoutExpired: Si ffmpeg excede el tiempo de espera.
+    """
+    logger.info(f"Iniciando extracción de audio desde: {video_path}")
+    logger.info(f"El audio extraído se guardará en: {output_path}")
+
     try:
-        # Crear directorio temporal si no existe
-        temp_dir = os.path.join(os.getcwd(), "temp")
-        os.makedirs(temp_dir, exist_ok=True)
+        logger.debug(
+            f"Asegurando que el directorio de salida '{os.path.dirname(output_path)}' exista.")
+        os.makedirs(os.path.dirname(output_path), exist_ok=True)
+        logger.debug(
+            f"Directorio de salida '{os.path.dirname(output_path)}' listo.")
+    except OSError as e:
+        logger.error(
+            f"No se pudo crear el directorio de salida '{os.path.dirname(output_path)}': {e}")
+        raise  # Re-lanzar la excepción para que sea manejada por el llamador
 
-        # Obtener la duración total
-        total_duration = audio_file.duration
-        chunks = math.ceil(total_duration / chunk_duration)
-        full_text = []
+    command = [
+        "ffmpeg",
+        "-i", video_path,
+        "-vn",
+        "-acodec", "pcm_s16le",
+        "-ar", "44100",
+        "-ac", "1",
+        "-y",  # Sobrescribir archivo de salida si existe
+        output_path
+    ]
 
-        logger.info(f"Duración total del audio: {total_duration} segundos")
-        logger.info(f"Procesando en {chunks} fragmentos...")
+    logger.info(f"Ejecutando comando ffmpeg: {' '.join(command)}")
 
-        # Guardar el audio completo temporalmente
-        temp_audio_path = os.path.join(temp_dir, "temp_audio.wav")
-        audio_file.write_audiofile(temp_audio_path)
+    try:
+        result = subprocess.run(
+            command,
+            capture_output=True,
+            text=True,
+            check=True,  # Lanza CalledProcessError si ffmpeg retorna un código de error
+            timeout=FFMPEG_TIMEOUT  # Añadir tiempo de espera
+        )
+        logger.info("Extracción de audio completada exitosamente.")
+        logger.debug(f"FFmpeg stdout:\n{result.stdout}")
+        if result.stderr:  # ffmpeg a menudo usa stderr para información, no solo errores
+            logger.debug(f"FFmpeg stderr:\n{result.stderr}")
 
-        # Cargar el audio con pydub
-        audio_segment = AudioSegment.from_wav(temp_audio_path)
-
-        for i in range(chunks):
-            start_time = i * chunk_duration * 1000  # pydub usa milisegundos
-            end_time = min((i + 1) * chunk_duration *
-                           1000, total_duration * 1000)
-
-            logger.info(
-                f"\nProcesando fragmento {i+1} de {chunks} ({start_time/1000}s - {end_time/1000}s)...")
-
-            try:
-                # Extraer fragmento
-                chunk = audio_segment[start_time:end_time]
-
-                # Guardar fragmento
-                chunk_path = os.path.join(temp_dir, f"chunk_{i}.wav")
-                chunk.export(chunk_path, format="wav")
-
-                # Procesar fragmento
-                recognizer = SpeechToText()
-                text = recognizer.convert_to_text(chunk_path)
-                full_text.append(text)
-
-                # Limpiar
-                os.remove(chunk_path)
-
-            except Exception as chunk_error:
-                logger.error(f"❌ Error en fragmento {i+1}: {str(chunk_error)}")
-                continue
-
-        # Limpiar archivo temporal
-        os.remove(temp_audio_path)
-
-        return " ".join(full_text)
-
-    except Exception as e:
-        logger.error(f"Error procesando audio en fragmentos: {str(e)}")
+    except FileNotFoundError:
+        logger.error(
+            "Error Crítico: ffmpeg no encontrado. Asegúrate de que ffmpeg esté instalado y en el PATH del sistema.")
+        raise
+    except subprocess.CalledProcessError as e:
+        logger.error(
+            f"Error durante la ejecución de ffmpeg (código de retorno {e.returncode}): {e}")
+        logger.error(f"FFmpeg stdout (si hubo):\n{e.stdout}")
+        logger.error(f"FFmpeg stderr:\n{e.stderr}")  # stderr es crucial aquí
+        raise
+    except subprocess.TimeoutExpired as e:
+        logger.error(
+            f"ffmpeg tardó demasiado (más de {FFMPEG_TIMEOUT} segundos) y fue interrumpido.")
+        logger.error(
+            f"FFmpeg stdout (si hubo antes del timeout):\n{e.stdout.decode(errors='ignore') if e.stdout else 'N/A'}")
+        logger.error(
+            f"FFmpeg stderr (si hubo antes del timeout):\n{e.stderr.decode(errors='ignore') if e.stderr else 'N/A'}")
+        raise
+    except Exception as e:  # Captura cualquier otra excepción inesperada
+        logger.error(f"Error inesperado durante la extracción de audio: {e}")
         raise
 
 
-def extract_and_transcribe(file_path):
-    """
-    Extrae audio de un archivo de video/audio y lo transcribe con procesamiento de texto avanzado.
-
-    Args:
-        file_path: Ruta al archivo de video o audio
-
-    Returns:
-        str: Ruta al archivo de transcripción generado
-    """
+def transcribe_audio(audio_path: str, recognizer: SpeechRecognizer, language: str) -> str:
+    logger.info(
+        f"Transcribiendo audio: {audio_path} usando {type(recognizer).__name__} en idioma {language}")
     try:
-        # Verificar si el archivo existe
-        if not os.path.exists(file_path):
-            raise FileNotFoundError("El archivo no existe")
+        transcription_text = recognizer.recognize(audio_path, language)
+        logger.info("Transcripción de audio completada.")
+        return transcription_text
+    except Exception as e:
+        logger.error(f"Error durante la transcripción: {e}")
+        raise  # Re-lanzar para que sea manejado por la UI
 
-        # Configurar directorios
-        app_dir = Path(__file__).parent.parent.parent
-        temp_dir = app_dir / "temp"
-        trans_dir = app_dir / "transcripciones"
 
-        # Crear directorios necesarios
-        temp_dir.mkdir(exist_ok=True)
-        trans_dir.mkdir(exist_ok=True)
+def extract_and_transcribe(file_path: str, ai_text_processor: Union[GeminiProcessor, Any], formatter: TextProcessor,
+                           recognizer: SpeechRecognizer, language: str) -> str:
+    logger.info(
+        f"Iniciando proceso completo para: {file_path}")
 
-        # Configurar rutas
-        audio_path = temp_dir / "temp_audio.wav"
-        text_path = trans_dir / f"{Path(file_path).stem}_transcripcion.txt"
+    # Crear el directorio de salida general si no existe
+    try:
+        os.makedirs(OUTPUT_DIR, exist_ok=True)
+    except OSError as e:
+        logger.error(
+            f"No se pudo crear el directorio de salida principal '{OUTPUT_DIR}': {e}")
+        raise
 
-        logger.info(f"Procesando archivo: {file_path}")
-        logger.info(f"Archivo de salida: {text_path}")
+    base_filename = os.path.splitext(os.path.basename(file_path))[0]
+    # Limpiar un poco el base_filename para rutas, aunque ffmpeg y Python deberían manejar Unicode.
+    # Esto es una medida de precaución menor; el problema principal suele ser con la herramienta externa (ffmpeg).
+    # safe_base_filename = "".join(c if c.isalnum() or c in (' ', '_', '-') else '_' for c in base_filename)
+    # Por ahora, mantenemos el nombre original para ver si ffmpeg lo maneja con las rutas correctas.
+    safe_base_filename = base_filename
 
-        try:
-            # Procesar según el tipo de archivo
-            if is_video_file(file_path):
-                logger.info("Procesando archivo de video...")
-                with VideoFileClip(str(file_path)) as video:
-                    if video.audio is None:
-                        raise ValueError("El video no contiene audio")
-                    text = process_in_chunks(video.audio)
+    audio_output_path = os.path.join(
+        OUTPUT_DIR, f"{safe_base_filename}_extracted_audio.wav")
+    processed_transcription_output_path = os.path.join(
+        OUTPUT_DIR, f"{safe_base_filename}_{PROCESSED_TRANSCRIPTION_FILENAME}")
 
-            elif is_audio_file(file_path):
-                logger.info("Procesando archivo de audio...")
-                with AudioFileClip(str(file_path)) as audio:
-                    text = process_in_chunks(audio)
+    try:
+        logger.info(f"Paso 1: Extracción de audio para '{file_path}'...")
+        extract_audio(file_path, audio_output_path)
+        logger.info(f"Audio extraído correctamente en: {audio_output_path}")
 
+        logger.info(
+            f"Paso 2: Transcripción de audio para '{audio_output_path}'...")
+        raw_transcription = transcribe_audio(
+            audio_output_path, recognizer, language)
+        logger.info("Transcripción en bruto obtenida.")
+        # Log de una parte
+        logger.debug(f"Transcripción en bruto: {raw_transcription[:200]}...")
+
+        logger.info("Paso 3: Procesamiento de la transcripción con IA...")
+        if ai_text_processor:
+            if hasattr(ai_text_processor, 'process_text'):
+                processed_data = ai_text_processor.process_text(
+                    raw_transcription)
+            elif hasattr(ai_text_processor, 'process_transcription'):
+                processed_data = ai_text_processor.process_transcription(
+                    raw_transcription)
             else:
-                raise ValueError(
-                    "Formato de archivo no soportado. Use archivos de video o audio.")
+                logger.error(
+                    "El procesador AI no tiene un método 'process_text' o 'process_transcription'.")
+                processed_data = {"actors": ["Desconocido"], "dialogues": [
+                    {"speaker": "Desconocido", "text": raw_transcription}]}
+            logger.info("Procesamiento AI completado.")
+        else:
+            logger.warning(
+                "No hay procesador AI configurado. Usando transcripción en bruto.")
+            processed_data = {"actors": ["Desconocido"], "dialogues": [
+                {"speaker": "Desconocido", "text": raw_transcription}]}
 
-            # Procesar el texto transcrito
-            logger.info("Procesando transcripción con análisis de texto...")
-            from utils.text_processor import TextProcessor
-            text_processor = TextProcessor()
-            processed_result = text_processor.process_transcript(text)
+        logger.info("Paso 4: Formateo del resultado...")
+        formatted_transcription = formatter.format_processed_result(
+            processed_data, os.path.basename(file_path))
+        logger.info("Formateo completado.")
 
-            # Guardar transcripción estructurada
-            logger.info("Guardando transcripción estructurada...")
-            with open(text_path, 'w', encoding='utf-8') as f:
-                # Encabezado
-                f.write("TRANSCRIPCIÓN ESTRUCTURADA\n")
-                f.write("=========================\n\n")
+        logger.info(
+            f"Paso 5: Guardando transcripción procesada en '{processed_transcription_output_path}'...")
+        with open(processed_transcription_output_path, "w", encoding="utf-8") as f:
+            f.write(formatted_transcription)
+        logger.info(
+            "Transcripción procesada y formateada guardada exitosamente.")
 
-                # Metadatos
-                f.write("INFORMACIÓN DEL ARCHIVO\n")
-                f.write("---------------------\n")
-                f.write(f"Archivo original: {Path(file_path).name}\n")
-                f.write(
-                    f"Fecha de procesamiento: {time.strftime('%Y-%m-%d %H:%M:%S')}\n\n")
+        if os.path.exists(audio_output_path):
+            try:
+                logger.debug(
+                    f"Intentando eliminar archivo de audio temporal: {audio_output_path}")
+                os.remove(audio_output_path)
+                logger.info(
+                    f"Archivo de audio temporal eliminado: {audio_output_path}")
+            except OSError as e_remove:
+                logger.warning(
+                    f"No se pudo eliminar el archivo de audio temporal '{audio_output_path}': {e_remove}")
 
-                # Actores identificados
-                if processed_result["actors"]:
-                    f.write("ACTORES IDENTIFICADOS\n")
-                    f.write("--------------------\n")
-                    for actor in processed_result["actors"]:
-                        f.write(f"- {actor}\n")
-                    f.write("\n")
-
-                # Diálogos por actor
-                f.write("DIÁLOGOS POR ACTOR\n")
-                f.write("-----------------\n")
-                for actor, dialogues in processed_result["dialogue_by_actor"].items():
-                    if dialogues:
-                        f.write(f"\n[{actor}]\n")
-                        for dialogue in dialogues:
-                            f.write(f"  • {dialogue}\n")
-                f.write("\n")
-
-                # Texto completo estructurado
-                f.write("TEXTO COMPLETO ESTRUCTURADO\n")
-                f.write("-------------------------\n")
-                f.write(processed_result["structured_text"])
-
-            logger.info(f"Transcripción guardada exitosamente en: {text_path}")
-            return str(text_path)
-
-        except Exception as e:
-            logger.error(f"Error en el procesamiento: {str(e)}")
-            raise
+        return processed_transcription_output_path
 
     except Exception as e:
-        logger.error(f"Error general: {str(e)}")
-        return str(e)
-
+        logger.error(
+            f"Error en el flujo principal de extract_and_transcribe para '{file_path}': {type(e).__name__} - {e}")
+        # Re-lanzar la excepción para que la UI la maneje
+        # Es importante que la UI muestre estos errores.
+        raise
     finally:
-        # Limpiar archivos temporales
-        if audio_path.exists():
-            audio_path.unlink()
-
-        # Limpiar directorio temporal
-        for temp_file in temp_dir.glob("chunk_*.wav"):
-            temp_file.unlink()
+        # Asegurarse de que el archivo de audio temporal se elimine al final
+        if os.path.exists(audio_output_path):
+            try:
+                logger.debug(
+                    f"Intentando eliminar archivo de audio temporal: {audio_output_path}")
+                os.remove(audio_output_path)
+                logger.info(
+                    f"Archivo de audio temporal eliminado: {audio_output_path}")
+            except OSError as e_remove:
+                logger.warning(
+                    f"No se pudo eliminar el archivo de audio temporal '{audio_output_path}': {e_remove}")
