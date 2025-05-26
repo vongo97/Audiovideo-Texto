@@ -4,26 +4,22 @@ import os
 from PyQt5.QtWidgets import QApplication, QMessageBox
 import logging
 
-# Importar los procesadores y reconocedores específicos usando IMPORTACIONES RELATIVAS
-# Ya que main.py está dentro del paquete src, usamos '.' para referenciar subpaquetes dentro de src
-from .utils.gemini_processor import GeminiProcessor  # <-- Importación relativa
-from .utils.text_processor import TextProcessor  # <-- Importación relativa
-from .transcriber.google_recognizer import GoogleRecognizer  # <-- Importación relativa
-# <-- Importación relativa
-from .transcriber.whisper_recognizer import WhisperRecognizer
-# <-- Importación relativa (para la interfaz base)
-from .transcriber.speech_recognition_factory import SpeechRecognizer
+# Importar los procesadores y reconocedores específicos usando IMPORTACIONES ABSOLUTAS
+# Añadimos el directorio padre al path para poder importar desde src
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+from src.utils.gemini_processor import GeminiProcessor
+from src.utils.text_processor import TextProcessor
+from src.transcriber.google_recognizer import GoogleRecognizer
+from src.transcriber.whisper_recognizer import WhisperRecognizer
+from src.transcriber.speech_recognition_factory import SpeechRecognizer
 
-from .ui.main_window import MainWindow  # <-- Importación relativa
+from src.ui.main_window import MainWindow
 
-# Importación relativa para Config
-# Asumiendo que config.py está en src/config/config.py
-from .config import Config  # <-- Importación relativa corregida
+# Importación para Config
+from src.config import Config
 
-# Importación relativa para audio_extractor
-# audio_extractor.py está en src/transcriber, main.py está en src
-# <-- Importación relativa corregida
-from .transcriber.audio_extractor import extract_and_transcribe
+# Importación para audio_extractor
+from src.transcriber.audio_extractor import extract_and_transcribe
 
 from typing import Dict, Any, Union
 
