@@ -1,27 +1,56 @@
 # src/main.py
+from src.transcriber.audio_extractor import extract_and_transcribe
+from src.config import Config
+from src.ui.main_window import MainWindow
+from src.transcriber.speech_recognition_factory import SpeechRecognizer
+from src.transcriber.whisper_recognizer import WhisperRecognizer
+from src.transcriber.google_recognizer import GoogleRecognizer
+from src.utils.text_processor import TextProcessor
+from src.utils.gemini_processor import GeminiProcessor
 import sys
 import os
-from PyQt5.QtWidgets import QApplication, QMessageBox
 import logging
+from PyQt5.QtWidgets import QApplication, QMessageBox
+from typing import Dict, Any, Union
+
+
+# Añadir el directorio padre al path para poder importar desde src
+sys.path.insert(0, os.path.abspath(
+    os.path.join(os.path.dirname(__file__), '..')))
+
+# Configurar el nivel de logging
+logging.basicConfig(level=logging.INFO,
+                    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
+
+# Importaciones absolutas
+
+# Importar DeepSeekProcessor si existe
+try:
+    from src.utils.deepseek_processor import DeepSeekProcessor
+except ImportError:
+    DeepSeekProcessor = None
+
+# Instancia global de Config
+config = Config()
+
+
+# Configurar el nivel de logging
+logging.basicConfig(level=logging.INFO,  # <-- Nivel de logging INFO por defecto
+                    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
+
 
 # Importar los procesadores y reconocedores específicos usando IMPORTACIONES ABSOLUTAS
 # Añadimos el directorio padre al path para poder importar desde src
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-from src.utils.gemini_processor import GeminiProcessor
-from src.utils.text_processor import TextProcessor
-from src.transcriber.google_recognizer import GoogleRecognizer
-from src.transcriber.whisper_recognizer import WhisperRecognizer
-from src.transcriber.speech_recognition_factory import SpeechRecognizer
+sys.path.insert(0, os.path.abspath(
+    os.path.join(os.path.dirname(__file__), '..')))
 
-from src.ui.main_window import MainWindow
 
 # Importación para Config
-from src.config import Config
 
 # Importación para audio_extractor
-from src.transcriber.audio_extractor import extract_and_transcribe
 
-from typing import Dict, Any, Union
 
 # Configurar el nivel de logging
 logging.basicConfig(level=logging.INFO,  # <-- Nivel de logging INFO por defecto
@@ -34,7 +63,7 @@ config = Config()
 
 # --- Función principal que contendrá la mayor parte de la lógica de la aplicación ---
 # Definir esta función ayuda a crear un scope de función necesario para 'nonlocal'
-def main_app_flow():
+def main_app_flow(app=None):
     logger.info("Iniciando flujo principal de la aplicación...")
 
     # --- Inicialización de variables que serán usadas en este scope y en funciones anidadas (nonlocal) ---
@@ -82,6 +111,28 @@ def main_app_flow():
             reinitialize_recognizer = True
             logger.info(
                 f"Idioma del reconocedor cambiado a: {config.get_recognizer_language()}")
+
+            # En main.py, en la función main_app_flow
+            # Obtener el tipo de procesador de texto de la configuración
+        text_processor_type = config.get_text_processor_type()
+
+        # Inicializar el procesador de texto según el tipo
+        if text_processor_type.lower() == "gemini":
+            api_key = config.get_google_api_key()
+            gemini_processor_instance = GeminiProcessor(api_key=api_key)
+            logger.info("GeminiProcessor inicializado correctamente.")
+        elif text_processor_type.lower() == "deepseek":
+            api_key = config.get_deepseek_api_key()
+            gemini_processor_instance = DeepSeekProcessor(api_key=api_key)
+            logger.info("DeepSeekProcessor inicializado correctamente.")
+        else:
+            # Fallback a Gemini si el tipo es desconocido
+            logger.warning(
+                f"Tipo de procesador de texto desconocido: '{text_processor_type}'. Usando 'gemini' como fallback.")
+            api_key = config.get_google_api_key()
+            gemini_processor_instance = GeminiProcessor(api_key=api_key)
+            # Actualizar config si se usa fallback
+            config.set_text_processor_type("gemini")
 
         # NOTA: En la versión anterior, no se manejaba el cambio de text_processor_type aquí.
 
@@ -287,7 +338,12 @@ def main_app_flow():
     # Iniciar el bucle de eventos de la aplicación Qt.
     # Esto bloquea la ejecución hasta que la aplicación se cierra.
     # DEBE HABER SOLO UN app.exec_()
-    sys.exit(app.exec_())
+    if app:
+        sys.exit(app.exec_())
+    else:
+        # Si no se proporcionó una instancia de app, mostrar un error
+        logger.error("No se proporcionó una instancia de QApplication")
+        sys.exit("Error: No se proporcionó una instancia de QApplication")
 
 
 # --- Punto de entrada real del script (bloque if __name__ == "__main__") ---

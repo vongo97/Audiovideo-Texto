@@ -19,6 +19,7 @@ class Config:
         "google_api_key": "",
         "recognizer_type": "google",  # Tipo de reconocedor por defecto
         "recognizer_language": "es-ES",  # Idioma por defecto para el reconocedor
+        "translate_to_spanish": False,
         # "text_processor_type": "gemini", # <-- Esta opción no existía en la versión anterior
         "text_processing_config": {  # Configuración para el TextProcessor (formateador)
             "entity_patterns": [
@@ -152,6 +153,19 @@ class Config:
         # pero para dicts simples, get basta.
         return self.settings.get("text_processing_config", self.DEFAULT_CONFIG.get("text_processing_config", {}))
 
+    def get_deepseek_api_key(self) -> str:
+        return self.settings.get("deepseek_api_key", self.DEFAULT_CONFIG.get("deepseek_api_key", ""))
+
+    def set_deepseek_api_key(self, api_key: str):
+        self.settings["deepseek_api_key"] = api_key
+        self.save_config()
+
+    def get_text_processor_type(self) -> str:
+        return self.settings.get("text_processor_type", self.DEFAULT_CONFIG.get("text_processor_type", "gemini"))
+
+    def set_text_processor_type(self, processor_type: str):
+        self.settings["text_processor_type"] = processor_type
+        self.save_config()
     # --- Métodos Getter y Setter para text_processor_type (ELIMINADOS en esta versión) ---
     # def get_text_processor_type(self) -> str: ...
     # def set_text_processor_type(self, processor_type: str): ...

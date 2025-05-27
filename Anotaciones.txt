@@ -1,0 +1,10 @@
+## Anotaciones
+
+j:\Trabajos\video-transcriber\src\ui\main_window.py
+j:\Trabajos\video-transcriber\src\config.py
+j:\Trabajos\video-transcriber\src\utils\gemini_processor.py
+j:\Trabajos\video-transcriber\src\ui\drag_drop_area.py
+
+## eNCARGADOD DE TRADUCION Y DEMAS COSAS EN CUANTO IA
+
+        ** gemini_processor.py ** es donde puedo configurar lso promt para pdoer ser mas exactos en cuatos la treaducion.

@@ -12,7 +12,7 @@ from PyQt5.QtCore import Qt, pyqtSignal, QSettings
 # Ya que main_window.py está dentro del subpaquete src.ui,
 # y drag_drop_area.py está en el mismo subpaquete, usamos '.'
 # CORREGIDO: Importación relativa para DragDropArea
-from .drag_drop_area import DragDropArea  # <-- Importación relativa corregida
+from .drag_drop_area import DragDropArea  # Importación relativa
 
 logger = logging.getLogger(__name__)
 
@@ -107,15 +107,47 @@ class MainWindow(QMainWindow):
         recognizer_layout.addLayout(recognizer_type_layout)
 
         # Idioma del Reconocedor
+        # Idioma del Reconocedor (usando ComboBox en lugar de QLineEdit)
         recognizer_language_layout = QHBoxLayout()
         self.recognizer_language_label = QLabel("Idioma:")
-        self.recognizer_language_edit = QLineEdit(config_settings.get(
-            "recognizer_language", "en-US"))  # Valor por defecto
-        self.recognizer_language_edit.editingFinished.connect(
+        self.recognizer_language_combo = QComboBox()
+
+        # Añadir opciones de idioma con sus códigos
+        language_options = [
+            ("Español", "es-ES"),
+            ("Inglés", "en-US"),
+            ("Francés", "fr-FR"),
+            ("Portugués", "pt-PT"),
+            ("Chino (Mandarín)", "zh-CN")
+        ]
+
+        for display_name, lang_code in language_options:
+            self.recognizer_language_combo.addItem(display_name, lang_code)
+
+        # Seleccionar el idioma actual de la configuración
+        current_language = config_settings.get("recognizer_language", "es-ES")
+        for i in range(self.recognizer_language_combo.count()):
+            if self.recognizer_language_combo.itemData(i) == current_language:
+                self.recognizer_language_combo.setCurrentIndex(i)
+                break
+
+        self.recognizer_language_combo.currentIndexChanged.connect(
             self.on_config_value_changed)  # Conectar señal
         recognizer_language_layout.addWidget(self.recognizer_language_label)
-        recognizer_language_layout.addWidget(self.recognizer_language_edit)
+        recognizer_language_layout.addWidget(self.recognizer_language_combo)
         recognizer_layout.addLayout(recognizer_language_layout)
+
+        # Opción para traducir al español
+        translate_layout = QHBoxLayout()
+        self.translate_label = QLabel("Traducir resultado:")
+        self.translate_checkbox = QCheckBox("Traducir al español")
+        self.translate_checkbox.setChecked(
+            config_settings.get("translate_to_spanish", False))
+        self.translate_checkbox.stateChanged.connect(
+            self.on_config_value_changed)
+        translate_layout.addWidget(self.translate_label)
+        translate_layout.addWidget(self.translate_checkbox)
+        recognizer_layout.addLayout(translate_layout)
 
         # Clave API de Google (si usas Google)
         # Considera manejar esto de forma más segura, como con variables de entorno.
@@ -230,7 +262,8 @@ class MainWindow(QMainWindow):
         current_config = {
             "output_dir": self.output_dir_edit.text(),
             "recognizer_type": self.recognizer_type_combo.currentText(),
-            "recognizer_language": self.recognizer_language_edit.text(),
+            "recognizer_language": self.recognizer_language_combo.itemData(self.recognizer_language_combo.currentIndex()),
+            "translate_to_spanish": self.translate_checkbox.isChecked(),
             # Considera no emitir la API key en la señal si no es necesario
             "google_api_key": self.google_api_key_edit.text(),
             "text_processor_type": self.text_processor_type_combo.currentText(),

@@ -1,12 +1,65 @@
-# Ignorar la carpeta del entorno virtual
+# Entornos virtuales
 .venv_py312/
+.venv/
+env/
+venv/
+ENV/
+.env
 
-# Ignorar carpetas de salida y temporales
+# Archivos de caché de Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+
+# Carpetas de salida y temporales
 output/
 temp/
 transcripciones/
+src/output/
+src/temp/
+src/pedidos/
 
-# Ignorar otros archivos comunes de Python si aún no los tienes
-__pycache__/
+# Archivos de configuración local
+*.log
+*.pot
 *.pyc
-*.ipynb_checkpoints/ # Si usas Jupyter
+local_settings.py
+db.sqlite3
+db.sqlite3-journal
+
+# Archivos de IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+.vs/
+
+# Archivos de configuración personal
+*.ini
+config.json
+.video_transcriber/
+
+# Archivos de distribución
+dist/
+build/
+*.egg-info/
+
+# Archivos multimedia (para evitar subir videos/audios de prueba)
+*.mp3
+*.mp4
+*.wav
+*.ogg
+*.flac
+*.m4a
+
+# Jupyter Notebook
+.ipynb_checkpoints
+*.ipynb

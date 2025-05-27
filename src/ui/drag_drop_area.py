@@ -10,21 +10,10 @@ from typing import Dict, Any, Union
 # Si GeminiProcessor y TextProcessor están en src/utils, las importaciones deben ser relativas a src
 # Si SpeechRecognizer está en src/transcriber, la importación debe ser relativa a src
 
-# Importación relativa para GeminiProcessor
-# drag_drop_area.py está en src/ui, gemini_processor.py está en src/utils
-# <-- Importación relativa corregida
-from ..utils.gemini_processor import GeminiProcessor
-
-# Importación relativa para TextProcessor
-# drag_drop_area.py está en src/ui, text_processor.py está en src/utils
-# <-- Importación relativa corregida
-from ..utils.text_processor import TextProcessor
-
-# Importación relativa para SpeechRecognizer
-# drag_drop_area.py está en src/ui, speech_recognition_factory.py está en src/transcriber
-# <-- Importación relativa corregida
-from ..transcriber.speech_recognition_factory import SpeechRecognizer
-
+from src.utils.gemini_processor import GeminiProcessor
+from src.utils.text_processor import TextProcessor
+from src.transcriber.speech_recognition_factory import SpeechRecognizer
+from src.transcriber.audio_extractor import extract_and_transcribe
 
 # Importar la función extract_and_transcribe usando IMPORTACIÓN RELATIVA
 # Ya que drag_drop_area.py está dentro del subpaquete src.ui,
@@ -69,17 +58,20 @@ class TranscriptionThread(QThread):
         self.progress_updated.emit(
             f"Iniciando transcripción de {os.path.basename(self.file_path)}...", 0)
         try:
-            # Aquí llamas a la función principal de extracción y transcripción
-            # Asegúrate de que extract_and_transcribe acepte los argumentos correctos
-            # Pasar ai_text_processor y formatter al extractor
+            # Crear una instancia de Config para acceder a settings
+            # Asegúrate de que la ruta sea correcta según tu estructura de proyecto
+            from src.config import Config
+            config = Config()
+
             output_path = extract_and_transcribe(
                 file_path=self.file_path,
-                # <-- Pasar la instancia del procesador de texto
                 ai_text_processor=self.ai_text_processor,
-                formatter=self.formatter,  # <-- Pasar el formateador
+                formatter=self.formatter,
                 recognizer=self.recognizer,
-                language=self.language
+                language=self.language,
+                config_settings=config.settings
             )
+
             if not self._is_canceled:
                 self.progress_updated.emit("¡Transcripción completada!", 100)
                 self.transcription_completed.emit(output_path)

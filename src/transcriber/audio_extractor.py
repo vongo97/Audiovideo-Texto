@@ -113,7 +113,8 @@ def transcribe_audio(audio_path: str, recognizer: SpeechRecognizer, language: st
 
 
 def extract_and_transcribe(file_path: str, ai_text_processor: Union[GeminiProcessor, Any], formatter: TextProcessor,
-                           recognizer: SpeechRecognizer, language: str) -> str:
+                           recognizer: SpeechRecognizer, language: str, config_settings: dict = None) -> str:
+
     logger.info(
         f"Iniciando proceso completo para: {file_path}")
 
@@ -147,8 +148,25 @@ def extract_and_transcribe(file_path: str, ai_text_processor: Union[GeminiProces
         raw_transcription = transcribe_audio(
             audio_output_path, recognizer, language)
         logger.info("Transcripción en bruto obtenida.")
+
+        # Después de obtener raw_transcription
+        if config_settings and config_settings.get("translate_to_spanish", False) and language != "es-ES":
+            logger.info("Traduciendo transcripción al español...")
+        if hasattr(ai_text_processor, 'translate_to_spanish'):
+            raw_transcription = ai_text_processor.translate_to_spanish(
+                raw_transcription)
+            logger.info("Transcripción traducida al español.")
+
         # Log de una parte
         logger.debug(f"Transcripción en bruto: {raw_transcription[:200]}...")
+
+        # Después de obtener raw_transcription pero antes de procesarla
+        config_settings = {}  # TODO: Reemplaza esto con la obtención real de la configuración
+        if config_settings.get("translate_to_spanish", False) and language != "es-ES":
+            logger.info("Traduciendo transcripción al español...")
+    # Aquí iría el código para traducir usando Gemini o algún otro servicio
+    # Por ejemplo:
+    # raw_transcription = translate_to_spanish(raw_transcription, ai_text_processor)
 
         logger.info("Paso 3: Procesamiento de la transcripción con IA...")
         if ai_text_processor:
