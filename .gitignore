@@ -1,5 +1,6 @@
 # Entornos virtuales
 .venv_py312/
+.venv_py312_new/
 .venv/
 env/
 venv/
@@ -63,3 +64,19 @@ build/
 # Jupyter Notebook
 .ipynb_checkpoints
 *.ipynb
+
+# Archivos de prueba y desarrollo
+ensayo.py
+ensayo_test.py
+*_test.py
+
+# Archivos de OAuth y credenciales
+oauth_*.json
+*_credentials.json
+client_secrets.json
+token.json
+src/utils/oauth_helper.py
+
+# Archivos de caché específicos
+**/__pycache__/
+**/*.pyc

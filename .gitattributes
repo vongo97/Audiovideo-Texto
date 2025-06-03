@@ -1,0 +1,29 @@
+# Configuración de fin de línea para archivos de texto
+* text=auto
+
+# Archivos de Python
+*.py text diff=python
+
+# Archivos de configuración
+*.json text
+*.yml text
+*.yaml text
+*.ini text
+*.cfg text
+
+# Archivos de documentación
+*.md text
+*.txt text
+
+# Archivos binarios
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.mp3 binary
+*.mp4 binary
+*.wav binary
+*.ogg binary
+*.flac binary
+*.m4a binary

@@ -1,0 +1,25 @@
+Plan de Mejoras para el Proyecto Video Transcriber
+
+1. Clave API:
+   - Mover la entrada de la clave API a una barra de configuración en la interfaz principal.
+   - Crear una barra o menú de configuración donde el usuario pueda ingresar su clave API.
+   - Eliminar la entrada de clave API de la pestaña de configuración actual.
+
+2. Mejoras en la Interfaz de Usuario:
+   - Aplicar un estilo moderno y profesional usando Qt Stylesheets o temas.
+   - Mejorar la paleta de colores para un look empresarial.
+   - Ajustar fuentes y tamaños para mejor legibilidad.
+   - Añadir elementos de branding como logo o splash screen.
+   - Mejorar la disposición y espaciado de los elementos UI para una experiencia más pulida.
+
+Archivos a editar:
+- ui/main_window.py (para UI y barra de configuración)
+- main.py (para ajustes de configuración si es necesario)
+
+Pasos siguientes:
+- Confirmar plan con el usuario.
+- Implementar cambios en UI.
+- Realizar pruebas para validar usabilidad.
+- Recoger feedback para ajustes finales.
+
+Por favor confirma si apruebas este plan para proceder con las mejoras.

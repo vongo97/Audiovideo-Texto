@@ -29,7 +29,12 @@ class GeminiProcessor:
 
         # TODO: Permitir configurar el modelo (ej. gemini-1.5-flash, gemini-1.0-pro)
         # Usamos gemini-1.5-flash por ser más rápido y económico para esta tarea.
-        self.model = genai.GenerativeModel('gemini-1.5-flash')
+        try:
+            self.model = genai.GenerativeModel('gemini-1.5-flash')
+        except Exception as e:
+            logger.warning(f"Error al inicializar modelo gemini-1.5-flash: {e}")
+            logger.info("Intentando con modelo alternativo gemini-pro...")
+            self.model = genai.GenerativeModel('gemini-pro')
 
         logger.info(
             f"GeminiProcessor inicializado con modelo {self.model.model_name}.")
